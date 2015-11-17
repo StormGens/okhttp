@@ -18,6 +18,9 @@ package com.squareup.okhttp;
 import java.io.IOException;
 
 /**
+ * //拦截器可以用来转换，重试，重写请求的机制。
+ * 典型地，拦截器将被用来添加、移除、或者转化Request和Response的Headers信息
+ *
  * Observes, modifies, and potentially short-circuits requests going out and the corresponding
  * requests coming back in. Typically interceptors will be used to add, remove, or transform headers
  * on the request or response.
