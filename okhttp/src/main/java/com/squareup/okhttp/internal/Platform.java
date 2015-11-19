@@ -36,7 +36,7 @@ import static com.squareup.okhttp.internal.Internal.logger;
 
 /**
  * Access to platform-specific features.
- *
+ * 做平台适应性，针对Android2.3到5.0的网络请求的适配支持。
  * <h3>Server name indication (SNI)</h3>
  * Supported on Android 2.3+.
  *

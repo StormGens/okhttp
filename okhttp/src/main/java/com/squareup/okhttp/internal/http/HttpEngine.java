@@ -73,6 +73,15 @@ import static java.net.HttpURLConnection.HTTP_UNAUTHORIZED;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
 /**
+ *
+ * 处理一个HTTP请求/响应对。每个HTTP引擎遵循这一生命周期：
+ * <li>被创建
+ * <li>HTTP请求通过{@code sendRequest()}被发送.请求一旦被发送，再修改请求的Headers将会发生错误。在{@code sendRequest()}
+ * 被调用后，请求的body是可以被写入的（如果存在）。
+ * <li>
+ *
+ *
+ *
  * Handles a single HTTP request/response pair. Each HTTP engine follows this
  * lifecycle:
  * <ol>
@@ -92,6 +101,7 @@ import static java.util.concurrent.TimeUnit.MILLISECONDS;
  */
 public final class HttpEngine {
   /**
+   * 我们应该进行多少次重定向和认证挑战的尝试？（多少次重试）
    * How many redirects and auth challenges should we attempt? Chrome follows 21 redirects; Firefox,
    * curl, and wget follow 20; Safari follows 16; and HTTP/1.0 recommends 5.
    */
@@ -169,6 +179,7 @@ public final class HttpEngine {
   private final boolean forWebSocket;
 
   /** The cache request currently being populated from a network response. */
+  //一个正在从网络response转化过来的缓存请求
   private CacheRequest storeRequest;
   private CacheStrategy cacheStrategy;
 
@@ -208,12 +219,16 @@ public final class HttpEngine {
    * Figures out what the response source will be, and opens a socket to that
    * source if necessary. Prepares the request headers and gets ready to start
    * writing the request body if it exists.
+   * 计算出反应源是什么，并在必要时打开一个套接字的来源。准备好请求头，并准备好开始写请求body（如果存在）
    *
-   * @throws RequestException if there was a problem with request setup. Unrecoverable.
+   * @throws RequestException if there was a problem with request setup. Unrecoverable
+   * .如果请求的设置有一个问题，抛出该异常。不可会瘦的。
    * @throws RouteException if the was a problem during connection via a specific route. Sometimes
    *     recoverable. See {@link #recover(RouteException)}.
+   *     如果在通过一个路由器进行连接的过程中出错了，抛出该异常，有时是可以挽回的。
    * @throws IOException if there was a problem while making a request. Sometimes recoverable. See
    *     {@link #recover(IOException)}.
+   *     如果在只做一个Request的过程中出错，抛出该异常。
    *
    */
   public void sendRequest() throws RequestException, RouteException, IOException {
@@ -222,7 +237,9 @@ public final class HttpEngine {
 
     Request request = networkRequest(userRequest);
 
+    //得到该Client的缓存
     InternalCache responseCache = Internal.instance.internalCache(client);
+    //得到一个候选缓存
     Response cacheCandidate = responseCache != null
         ? responseCache.get(request)
         : null;
@@ -242,16 +259,18 @@ public final class HttpEngine {
 
     if (networkRequest != null) {
       // Open a connection unless we inherited one from a redirect.
+      // 打开一个连接，除非我们继承了一个来自重定向。
       if (connection == null) {
         connect();
       }
-
+      //得到HttpTransport(Http请求)
       transport = Internal.instance.newTransport(connection, this);
 
       // If the caller's control flow writes the request body, we need to create that stream
       // immediately. And that means we need to immediately write the request headers, so we can
       // start streaming the request body. (We may already have a request body if we're retrying a
       // failed POST.)
+      //根据条件将一些执行请求头部的写入，具体的写入会调动到httpConnection的sink（就是一个socket请求的outputstream）去write
       if (callerWritesRequestBody && permitsRequestBody(networkRequest) && requestBodyOut == null) {
         long contentLength = OkHeaders.contentLength(request);
         if (bufferRequestBody) {
@@ -270,27 +289,28 @@ public final class HttpEngine {
             // Content-Length header correctly.
             requestBodyOut = new RetryableSink();
           }
-        } else {
+        } else {//进入这个判断说明不需要走网络请求，直接读取缓存
           transport.writeRequestHeaders(networkRequest);
           requestBodyOut = transport.createRequestBody(networkRequest, contentLength);
         }
       }
 
     } else {
+      //我们没有使用网络。再有可能来自于一个重定向时，回收一个网络连接(原始请求创建的）。
       // We aren't using the network. Recycle a connection we may have inherited from a redirect.
       if (connection != null) {
         Internal.instance.recycle(client.getConnectionPool(), connection);
         connection = null;
       }
 
-      if (cacheResponse != null) {
+      if (cacheResponse != null) {//组装缓存数据成Response
         // We have a valid cached response. Promote it to the user response immediately.
         this.userResponse = cacheResponse.newBuilder()
             .request(userRequest)
             .priorResponse(stripBody(priorResponse))
             .cacheResponse(stripBody(cacheResponse))
             .build();
-      } else {
+      } else {//我们不能使用网络、但之前又没有充分的缓存则抛出 504的Response
         // We're forbidden from using the network, and the cache is insufficient.
         this.userResponse = new Response.Builder()
             .request(userRequest)
@@ -301,7 +321,7 @@ public final class HttpEngine {
             .body(EMPTY_BODY)
             .build();
       }
-
+      //解压请求结果
       userResponse = unzip(userResponse);
     }
   }
@@ -312,28 +332,36 @@ public final class HttpEngine {
         : response;
   }
 
-  /** Connect to the origin server either directly or via a proxy. */
+  /** Connect to the origin server either directly or via a proxy.
+   * 直接或者通过一个代理连接到远程服务器
+   * */
   private void connect() throws RequestException, RouteException {
     if (connection != null) throw new IllegalStateException();
 
     if (routeSelector == null) {
+      //建立一个Address,用来记录web服务器，以及要连接服务器需要的一些静态配置比如端口号，网络协议等
       address = createAddress(client, networkRequest);
       try {
+        //得到路由选择器，用于记录连接服务器的一些动态配置，比如查询DNS的ip，代理服务器,TLS协议版本
         routeSelector = RouteSelector.get(address, networkRequest, client);
       } catch (IOException e) {
         throw new RequestException(e);
       }
     }
 
+    //得到httpConnection
     connection = createNextConnection();
+    //将connection设置到okhttpclient
     Internal.instance.connectAndSetOwner(client, connection, this);
     route = connection.getRoute();
   }
 
   private Connection createNextConnection() throws RouteException {
+    //拿到连接池，如果用户没有设置pool，将得到默认的ConnectionPool
     ConnectionPool pool = client.getConnectionPool();
 
     // Always prefer pooled connections over new connections.
+    //相比新创建连接，往往更倾向于连接池中的连接
     for (Connection pooled; (pooled = pool.get(address)) != null; ) {
       if (networkRequest.method().equals("GET") || Internal.instance.isReadable(pooled)) {
         return pooled;
@@ -341,7 +369,7 @@ public final class HttpEngine {
       closeQuietly(pooled.getSocket());
     }
 
-    try {
+    try {//没有满足条件的Connection,只能建立新的connection
       Route route = routeSelector.next();
       return new Connection(pool, route);
     } catch (IOException e) {
@@ -682,10 +710,14 @@ public final class HttpEngine {
   }
 
   /**
+   * 转化一下request，加入一些默认信息
+   *
+   * 用默认值和cookie填充请求
    * Populates request with defaults and cookies.
    *
    * <p>This client doesn't specify a default {@code Accept} header because it
    * doesn't know what content types the application is interested in.
+   * 由于不知道Application对什么内容类型感兴趣，该客户端不会指定一个默认的{@code Accept} header。
    */
   private Request networkRequest(Request request) throws IOException {
     Request.Builder result = request.newBuilder();
@@ -727,6 +759,8 @@ public final class HttpEngine {
   /**
    * Flushes the remaining request header and body, parses the HTTP response
    * headers and starts reading the HTTP response body if it exists.
+   *
+   * 刷新剩余的请求头和身体，解析HTTP响应头并开始读取HTTP响应体(如果它存在的话)。
    */
   public void readResponse() throws IOException {
     if (userResponse != null) {
@@ -822,6 +856,9 @@ public final class HttpEngine {
     }
   }
 
+  /**
+   *网络拦截器链条：
+   */
   class NetworkInterceptorChain implements Interceptor.Chain {
     private final int index;
     private final Request request;

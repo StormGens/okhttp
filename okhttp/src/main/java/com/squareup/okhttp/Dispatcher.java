@@ -27,7 +27,12 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
 /**
+ * 异步请求的策略
  * Policy on when async requests are executed.
+ *
+ * <p>每个调度者使用一个{@link ExecutorService} 在内部执行请求（calls）。如果你提供了自己的执行者，
+ * 它应该可以同时运行{@linkplain #getMaxRequests the configured maximum}数量的请求。
+ *
  *
  * <p>Each dispatcher uses an {@link ExecutorService} to run calls internally. If you
  * supply your own executor, it should be able to run {@linkplain #getMaxRequests the
@@ -38,12 +43,15 @@ public final class Dispatcher {
   private int maxRequestsPerHost = 5;
 
   /** Executes calls. Created lazily. */
+  /** 执行请求(连接池)，懒加载 */
   private ExecutorService executorService;
 
   /** Ready calls in the order they'll be run. */
+  /** 在排队中的请求 */
   private final Deque<AsyncCall> readyCalls = new ArrayDeque<>();
 
   /** Running calls. Includes canceled calls that haven't finished yet. */
+  /** 正在执行的请求，包括在还没有执行完就被取消的请求 */
   private final Deque<AsyncCall> runningCalls = new ArrayDeque<>();
 
   /** In-flight synchronous calls. Includes canceled calls that haven't finished yet. */

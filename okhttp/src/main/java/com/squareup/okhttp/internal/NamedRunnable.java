@@ -18,6 +18,7 @@ package com.squareup.okhttp.internal;
 
 /**
  * Runnable implementation which always sets its thread name.
+ * 一个一直带有自己线程名字的Runnable。
  */
 public abstract class NamedRunnable implements Runnable {
   protected final String name;

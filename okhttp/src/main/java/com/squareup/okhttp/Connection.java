@@ -155,6 +155,7 @@ public final class Connection {
     if (connected) throw new IllegalStateException("already connected");
 
     RouteException routeException = null;
+    //建立Socket连接器
     ConnectionSpecSelector connectionSpecSelector = new ConnectionSpecSelector(connectionSpecs);
     Proxy proxy = route.getProxy();
     Address address = route.getAddress();
@@ -206,6 +207,7 @@ public final class Connection {
           .protocol(protocol).build();
       framedConnection.sendConnectionPreface();
     } else {
+      //建立httpConnection
       httpConnection = new HttpConnection(pool, this, socket);
     }
   }

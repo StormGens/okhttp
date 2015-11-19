@@ -18,6 +18,8 @@ package com.squareup.okhttp;
 import java.io.IOException;
 
 /**
+ * 网络协议的枚举
+ *
  * Protocols that OkHttp implements for <a
  * href="http://tools.ietf.org/html/draft-ietf-tls-applayerprotoneg">ALPN</a>
  * selection.

@@ -22,6 +22,8 @@ import java.net.URL;
 import java.util.List;
 
 /**
+ * 一个网络请求，如果他们的body是空或者他本身不可变，该类的实例是不可变的。
+ *
  * An HTTP request. Instances of this class are immutable if their {@link #body}
  * is null or itself immutable.
  */
